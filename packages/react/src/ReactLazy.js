@@ -48,7 +48,9 @@ export type LazyComponent<T, P> = {
   _init: (payload: P) => T,
 };
 
+// lazy初始器
 function lazyInitializer<T>(payload: Payload<T>): T {
+  // 判断当前payload的状态，如果是还没有初始化 那么就进行promise的then调用
   if (payload._status === Uninitialized) {
     const ctor = payload._result;
     const thenable = ctor();
@@ -58,6 +60,8 @@ function lazyInitializer<T>(payload: Payload<T>): T {
     pending._result = thenable;
     thenable.then(
       moduleObject => {
+        // 异步结果要保持promise特性，一旦状态从pending态变成fulfilled或者rejected态之后就不能在更改状态了
+        // 因此这里要判断当前经过then方法后是不是状态还是pending，如果是的话 那么就改变状态和result到对应状态
         if (payload._status === Pending) {
           const defaultExport = moduleObject.default;
           if (__DEV__) {
@@ -88,13 +92,15 @@ function lazyInitializer<T>(payload: Payload<T>): T {
       },
     );
   }
+  // 如果payload状态已经改变了 那么就返回对应结果
   if (payload._status === Resolved) {
     return payload._result;
   } else {
     throw payload._result;
   }
 }
-
+// React.lazy方法接受一个函数，函数返回一个thenanle 也就是promise
+// 返回一个对象，内部有$$typeof标识进行区分当前是lazy component
 export function lazy<T>(
   ctor: () => Thenable<{default: T, ...}>,
 ): LazyComponent<T, Payload<T>> {

@@ -8,7 +8,7 @@
 import {REACT_MEMO_TYPE} from 'shared/ReactSymbols';
 
 import isValidElementType from 'shared/isValidElementType';
-
+// react.memo 返回一个对象 $$typeof区分是memo组件，并接受一个compare方法，类似shouldComponentUpdate
 export function memo<Props>(
   type: React$ElementType,
   compare?: (oldProps: Props, newProps: Props) => boolean,

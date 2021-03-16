@@ -27,6 +27,7 @@ const SUBSEPARATOR = ':';
  * @param {string} key to be escaped.
  * @return {string} the escaped key.
  */
+// 用来做安全字符的转义 转义 = 和 ：保证 使用reactid一定是安全的id
 function escape(key: string): string {
   const escapeRegex = /[=:]/g;
   const escaperLookup = {
@@ -69,7 +70,17 @@ function getElementKey(element: any, index: number): string {
   // Implicit key determined by the index in the set
   return index.toString(36);
 }
-
+// react children的核心方法，用来遍历children
+/**
+ * 
+ * @param {*} children children代表的是需要遍历的children对象，可能为null，也可能是单个children，也可能是可遍历的children
+ * @param {*} array array用来保存遍历过程中调用callback后的返回值
+ * @param {*} escapedPrefix 转义的前缀 对nameSoFar做转义
+ * @param {*} nameSoFar 拼接出来的childr的key
+ * @param {*} callback 遍历调用的回调函数
+ * @param {any} 
+ * @param {*} ReactNodeList 
+ */
 function mapIntoArray(
   children: ?ReactNodeList,
   array: Array<React$Node>,
@@ -78,14 +89,15 @@ function mapIntoArray(
   callback: (?React$Node) => ?ReactNodeList,
 ): number {
   const type = typeof children;
-
+  // 判断children的类型 如果是undefined或者布尔置为null
   if (type === 'undefined' || type === 'boolean') {
     // All of the above are perceived as null.
     children = null;
   }
-
+  // 判断是否调用callback
   let invokeCallback = false;
-
+  // 这里进行children类型的判断，当children如果是数组或者不是reactElement类型的object就认为是可遍历的children
+  // 不然就认为是单个元素 可以进行callback的调用
   if (children === null) {
     invokeCallback = true;
   } else {
@@ -105,12 +117,17 @@ function mapIntoArray(
 
   if (invokeCallback) {
     const child = children;
+    // 执行回调函数
     let mappedChild = callback(child);
     // If it's the only child, treat the name as if it was wrapped in an array
     // so that it's consistent if the number of children grows:
+    // 获取child的key  把单个元素看做是被长度为1的数组包裹起来
     const childKey =
       nameSoFar === '' ? SEPARATOR + getElementKey(child, 0) : nameSoFar;
+    // 这里进行判断回调函数如果返回的是一个数组那么就继续遍历 展开
+    // 这里可以看到 如果我们回调函数返回的不管是多深的数组都会展平
     if (Array.isArray(mappedChild)) {
+      // 这里把当前遍历元素的key 进行转义 作为后续递归遍历child的前缀key
       let escapedChildKey = '';
       if (childKey != null) {
         escapedChildKey = escapeUserProvidedKey(childKey) + '/';
@@ -118,6 +135,7 @@ function mapIntoArray(
       mapIntoArray(mappedChild, array, escapedChildKey, '', c => c);
     } else if (mappedChild != null) {
       if (isValidElement(mappedChild)) {
+        // 这里判断 如果回调函数的结果是一个react element 为了避免key值在遍历过程出现重复，就克隆一个element并且替换key
         mappedChild = cloneAndReplaceKey(
           mappedChild,
           // Keep both the (mapped) and old keys if they differ, just as
@@ -133,6 +151,7 @@ function mapIntoArray(
       }
       array.push(mappedChild);
     }
+    // 这里返回的是调用次数
     return 1;
   }
 
@@ -141,7 +160,7 @@ function mapIntoArray(
   let subtreeCount = 0; // Count of children found in the current subtree.
   const nextNamePrefix =
     nameSoFar === '' ? SEPARATOR : nameSoFar + SUBSEPARATOR;
-
+  // 如果children 是数组 那么就继续调用 进行递归 知道child是一个单个元素，走上面逻辑
   if (Array.isArray(children)) {
     for (let i = 0; i < children.length; i++) {
       child = children[i];
@@ -155,6 +174,7 @@ function mapIntoArray(
       );
     }
   } else {
+    // 这里判断children是不是一个可遍历的元素，也就是说有没有提供遍历器接口
     const iteratorFn = getIteratorFn(children);
     if (typeof iteratorFn === 'function') {
       const iterableChildren: Iterable<React$Node> & {
@@ -173,7 +193,8 @@ function mapIntoArray(
           didWarnAboutMaps = true;
         }
       }
-
+      // 如果children不是数组 但是 内部有遍历器，说明是一个可遍历的元素
+      // 那么就调用遍历器 next 进行不断地遍历 知道遍历器返回done为true 代表遍历完成
       const iterator = iteratorFn.call(iterableChildren);
       let step;
       let ii = 0;
@@ -201,7 +222,7 @@ function mapIntoArray(
       );
     }
   }
-
+  // 这里返回的是遍历的次数
   return subtreeCount;
 }
 
@@ -220,6 +241,7 @@ type MapFunc = (child: ?React$Node) => ?ReactNodeList;
  * @param {*} context Context for mapFunction.
  * @return {object} Object containing the ordered map of results.
  */
+// 这里是类似数组的map方法，遍历并且返回一个结果数组
 function mapChildren(
   children: ?ReactNodeList,
   func: MapFunc,
@@ -228,6 +250,7 @@ function mapChildren(
   if (children == null) {
     return children;
   }
+  // 用result进行收集回调函数遍历的结果
   const result = [];
   let count = 0;
   mapIntoArray(children, result, '', '', function(child) {
@@ -245,6 +268,7 @@ function mapChildren(
  * @param {?*} children Children tree container.
  * @return {number} The number of children.
  */
+// 计算有多少个children
 function countChildren(children: ?ReactNodeList): number {
   let n = 0;
   mapChildren(children, () => {
@@ -268,6 +292,7 @@ type ForEachFunc = (child: ?React$Node) => void;
  * @param {function(*, int)} forEachFunc
  * @param {*} forEachContext Context for forEachContext.
  */
+// 类似数组的forEach遍历， 只遍历但不返回结果
 function forEachChildren(
   children: ?ReactNodeList,
   forEachFunc: ForEachFunc,
@@ -289,6 +314,7 @@ function forEachChildren(
  *
  * See https://reactjs.org/docs/react-api.html#reactchildrentoarray
  */
+// 把children转成array
 function toArray(children: ?ReactNodeList): Array<React$Node> {
   return mapChildren(children, child => child) || [];
 }

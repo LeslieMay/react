@@ -42,7 +42,9 @@ export function forwardRef<Props, ElementType: React$ElementType>(
       }
     }
   }
-
+  // forward ref 其实是创建一个对象 ，对象内部有一个$$typeof的标识 区分该元素是一个forwardRef元素
+  // 参数是一个render返回了一个react node ，render接受props和ref作为参数
+  // 因此可以通过forwardRef进行ref的透传交给函数式组件的child
   const elementType = {
     $$typeof: REACT_FORWARD_REF_TYPE,
     render,
