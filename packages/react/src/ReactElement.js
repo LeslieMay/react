@@ -145,6 +145,10 @@ function warnIfStringRefCannotBeAutoConverted(config) {
  * indicating filename, line number, and/or other information.
  * @internal
  */
+/**
+ * 工厂函数创建 react element
+ * 利用$$typeof 去判断是不是一个react element
+ */
 const ReactElement = function(type, key, ref, self, source, owner, props) {
   const element = {
     // This tag allows us to uniquely identify this as a React Element
@@ -207,6 +211,9 @@ const ReactElement = function(type, key, ref, self, source, owner, props) {
  * @param {object} props
  * @param {string} key
  */
+// 和 createElement方法一样 也是用来编译jsx 在react17以前  babel会把jsx编译成React.createElement
+// 在react17以后 babel会把jsx编译成jsx()
+// 这样就避免了 我们在编写jsx的时候 一定要在顶部引入React的问题 
 export function jsx(type, config, maybeKey) {
   let propName;
 
@@ -357,7 +364,7 @@ export function createElement(type, config, children) {
   let ref = null;
   let self = null;
   let source = null;
-
+  // 将key 和 ref，__self，__source 从config中提取出来 然后把剩下的属性放入props中
   if (config != null) {
     if (hasValidRef(config)) {
       ref = config.ref;
@@ -385,6 +392,7 @@ export function createElement(type, config, children) {
 
   // Children can be more than one argument, and those are transferred onto
   // the newly allocated props object.
+  // 这里把children转化成数组，如果只有三个参数，那说明 children只有一个，如果不止三个参数，说明children有很多个 需要转成array
   const childrenLength = arguments.length - 2;
   if (childrenLength === 1) {
     props.children = children;
@@ -402,6 +410,7 @@ export function createElement(type, config, children) {
   }
 
   // Resolve default props
+  // 判断当前组件是否有默认的props 有的话 把默认props赋值给props
   if (type && type.defaultProps) {
     const defaultProps = type.defaultProps;
     for (propName in defaultProps) {
@@ -424,6 +433,7 @@ export function createElement(type, config, children) {
       }
     }
   }
+  // 调用工厂函数生成element
   return ReactElement(
     type,
     key,

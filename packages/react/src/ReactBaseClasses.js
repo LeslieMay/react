@@ -26,7 +26,7 @@ function Component(props, context, updater) {
   // renderer.
   this.updater = updater || ReactNoopUpdateQueue;
 }
-
+// 用来区分当前组件是react component
 Component.prototype.isReactComponent = {};
 
 /**
@@ -53,6 +53,13 @@ Component.prototype.isReactComponent = {};
  * @param {?function} callback Called after state is updated.
  * @final
  * @protected
+ */
+/**
+ * 1. 改变状态用setState改变，不要this.state.xxx进行改变
+ * 2. 执行了setState之后并不能保证this.state一定是立即更新的，如果在setState之后立即访问this.state，可能会拿到改变前的旧值
+ * 3. 不能保证setState是同步执行的，setState可能会是批量执行，提供的参数回调函数会在setState执行之后调用
+ * 4. 提供的回调函数会有最新的参数state，props，context，这些值和直接使用this.xxx得到的值可能是不一样的，
+ *    因为回调函数可能会在receiveProps之后shouldComponentUpdate之前调用，此时新的state，props，context还没有重新赋值给this
  */
 Component.prototype.setState = function(partialState, callback) {
   invariant(
@@ -120,6 +127,7 @@ if (__DEV__) {
   }
 }
 
+// 利用寄生式继承 声明一个空的构造函数，将该构造函数的原型指向Component的原型，利用这个构造函数进行继承可以减少实例化Component产生不必要的实例属性，避免内存消耗
 function ComponentDummy() {}
 ComponentDummy.prototype = Component.prototype;
 
@@ -133,11 +141,24 @@ function PureComponent(props, context, updater) {
   this.refs = emptyObject;
   this.updater = updater || ReactNoopUpdateQueue;
 }
-
+// 典型的寄生继承
 const pureComponentPrototype = (PureComponent.prototype = new ComponentDummy());
+// 修正constructor
 pureComponentPrototype.constructor = PureComponent;
 // Avoid an extra prototype jump for these methods.
+// 将component上的原型提高一级到PureComponent上，避免利用__proto__再进行一次原型链向上查找
 Object.assign(pureComponentPrototype, Component.prototype);
+// 标识该组件是通过PureComponent组件
 pureComponentPrototype.isPureReactComponent = true;
 
 export {Component, PureComponent};
+
+/**
+ * 疑问：为什么不直接利用Object.assign 将Component.prototype合并到PureComponent.prototype呢？
+ * 我的理解是，直接利用Object.assign会有几个问题
+ * 1. Object.assign只能源对象的自身属性，不能拷贝继承属性，也不能拷贝不可枚举属性
+ * 2. 利用Object.assign不能用instanceof 判断PureComponent的实例不是Component的实例，
+ * 也就是说`PureComponent.prototype.__proto__` 指向的不是`Component.prototype`, 为什么不手动指定`__proto__`呢 ，因为这玩意有兼容性
+ * 因此采用寄生继承保证`PureComponent.prototype.__proto__`指向`Component.prototype`,实现真正意义上的继承关系，
+ * 然后再通过Object.assign去优化原型方法的链式查找，（Object.assign锦上添花）
+ */
